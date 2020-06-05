@@ -1,16 +1,13 @@
 #include <bits/stdc++.h>
-#include "Node.cpp"
 using namespace std;
 
 class Compressor
 {
     const int MAX_CHAR_COUNT = 256;
 
-    unordered_map<unsigned int, unsigned int> freq;
     unordered_map<string, unsigned int> dict;
     unordered_map<unsigned int, string> dict_inv;
     unsigned int dict_cur_pos = 0, dict_inv_cur_pos = 0;
-    vector<Node> huffmanDict;
     ifstream iFile;
     ofstream oFile;
 
@@ -36,44 +33,27 @@ class Compressor
         }
     }
 
-    void constructHuffmanDict() {
-        for (auto it : freq) {
-            Node tmp(it.first, it.second);
-            huffmanDict.push_back(tmp);
-        }
+    inline bool read3Bytes(int& n) {
+        char bytes[3];
+        iFile.read(bytes, 3);
 
-        while (huffmanDict.size() > 1) {
-            pop_heap(huffmanDict.begin(), huffmanDict.end());
-            Node n1 = huffmanDict.back(); huffmanDict.pop_back();
- 
-            pop_heap(huffmanDict.begin(), huffmanDict.end());
-            Node n2 = huffmanDict.back(); huffmanDict.pop_back();
+        n = int(
+            (unsigned char)bytes[0]<<16 |
+            (unsigned char)bytes[1]<<8 |
+            (unsigned char)bytes[2]
+        );
 
-            Node n3 = n1 + n2;
-            n3.r = &n1; n3.l = &n2;
-
-            huffmanDict.push_back(n3); push_heap(huffmanDict.begin(), huffmanDict.end());
-        }
+        return !iFile.eof();
     }
 
-    void generateCodes(Node* cur, int code) {
-        if (cur == nullptr)
-            return;
-        if (cur && cur->entity != 0) {
-            cout << cur->entity << " " << code << '\n';
-            oFile << cur->entity << code;
-            return;
-        }
-        generateCodes(cur->l, code<<1);
-        generateCodes(cur->r, code<<1 + 1);
-    }
+    inline void write3bytes(int n) {
+        char bytes[3] = {
+            (unsigned char) (n >> 16) & 0xFF,
+            (unsigned char) (n >> 8) & 0xFF,
+            (unsigned char) (n) & 0xFF
+        };
 
-    void addFreq(int e)
-    {
-        if (!freq.count(e)) {
-            freq.insert({e, 0});
-        } else 
-        freq[e]++;
+        oFile.write(bytes, 3);
     }
 
 public:
@@ -90,9 +70,7 @@ public:
 
     void encode()
     {
-        dict.clear();
         initDict(0);
-        stringstream intermediate;
         char nextChar;
         string buf = "";
 
@@ -104,35 +82,27 @@ public:
             }
             else
             {
-                intermediate << dict[buf] << " ";
-                addFreq(dict[buf]);
+                write3bytes(dict[buf]);
                 dict[buf + nextChar] = dict_cur_pos++;
                 buf = "";
                 buf += nextChar;
             }
         }
 
-        intermediate << dict[buf] << " ";
-
-        constructHuffmanDict();
-        generateCodes(&(huffmanDict[0]), 0);
+        write3bytes(dict[buf]);
     }
 
     void decode()
     {
-        dict_inv.clear();
         initDict(1);
-
-        stringstream intermediate;
-        
-        unsigned int nextCode;
+        int nextCode;
         string buf = "", cur;
-        iFile >> nextCode;
+        read3Bytes(nextCode);
         cur = dict_inv[nextCode];
         oFile << cur;
         buf = cur;
 
-        while (iFile >> nextCode) {
+        while (read3Bytes(nextCode)) {
             cur = dict_inv[nextCode];
 
             oFile << cur;
@@ -141,8 +111,6 @@ public:
 
             buf = cur;
         }
-        iFile.close();
-        oFile.close();
     }
 
     void testDict()
